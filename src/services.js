@@ -40,13 +40,13 @@ async function sendMenu() {
 
     // Set viewport size to 1920x1080
     await page.setViewport({ width: 1920, height: 1080 });
-    await page.evaluate(() => {
-      const element = document.querySelector('.index_div_wraper_search__B_pLd');
-      element.parentNode.removeChild(element);
-    });
-    console.log('Link opened');
+    // await page.evaluate(() => {
+    //   const element = document.querySelector('.index_div_wraper_search__B_pLd');
+    //   element.parentNode.removeChild(element);
+    // });
 
     const elements = await page.$$('.items_detail-menu__TtlTb');
+    console.log('Link opened');
 
     let msg = '\n----------------------------------\n';
     msg += `Nô tì xin gửi menu cơm hôm nay ${getDate()}:`;
