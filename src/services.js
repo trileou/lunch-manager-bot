@@ -33,17 +33,17 @@ async function sendMenu() {
     // Đi đến trang web của nhà hàng
     await page.goto(MENU_URL, { waitUntil: 'domcontentloaded' });
     console.log('Page opened');
-    // await page.waitForSelector('div[class^="items_detail-menu__TtlTb"] img', {
-    //   timeout: 30000, // thời gian chờ tối đa là 30 giây
-    //   visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
-    // });
+    await page.waitForSelector('div[class^="items_detail-menu"] img', {
+      timeout: 90000, // thời gian chờ tối đa là 30 giây
+      visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
+    });
 
     // Set viewport size to 1920x1080
     await page.setViewport({ width: 1920, height: 1080 });
-    // await page.evaluate(() => {
-    //   const element = document.querySelector('.index_div_wraper_search__B_pLd');
-    //   element.parentNode.removeChild(element);
-    // });
+    await page.evaluate(() => {
+      const element = document.querySelector('.index_div_wraper_search__B_pLd');
+      element.parentNode.removeChild(element);
+    });
 
     const elements = await page.$$('.items_detail-menu__TtlTb');
     console.log('Link opened');
