@@ -9,19 +9,34 @@ const mutex = new Mutex();
 
 let tempOrder = [];
 
+async function sendDebt() {
+  const message =
+    'Mọi người ơi 4h rồi ai còn nợ tiền cơm thì thanh toán nha! \n' +
+    '<b>Thông tin thanh toán 💰: </b>\n' +
+    '- <b>momo của Anh Minh:</b> 0935268122\n';
+  await bot.telegram.sendMessage(GROUP_CHAT_ID, message, {
+    parse_mode: 'HTML',
+  });
+}
+
 // Hàm gửi menu
 async function sendMenu() {
   try {
     // Tạo trình duyệt mới
-    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    console.log('Browser launched');
     const page = await browser.newPage();
 
     // Đi đến trang web của nhà hàng
-    await page.goto(MENU_URL);
-    await page.waitForSelector('div[class^="items_detail-menu"] img', {
-      timeout: 30000, // thời gian chờ tối đa là 30 giây
-      visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
-    });
+    await page.goto(MENU_URL, { waitUntil: 'domcontentloaded' });
+    console.log('Page opened');
+    // await page.waitForSelector('div[class^="items_detail-menu__TtlTb"] img', {
+    //   timeout: 30000, // thời gian chờ tối đa là 30 giây
+    //   visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
+    // });
 
     // Set viewport size to 1920x1080
     await page.setViewport({ width: 1920, height: 1080 });
@@ -29,14 +44,13 @@ async function sendMenu() {
       const element = document.querySelector('.index_div_wraper_search__B_pLd');
       element.parentNode.removeChild(element);
     });
+    console.log('Link opened');
+
     const elements = await page.$$('.items_detail-menu__TtlTb');
 
     let msg = '\n----------------------------------\n';
-    msg += `Nô tì xin gửi menu cơm hôm nay ${getDate()}:`
-    await bot.telegram.sendMessage(
-        GROUP_CHAT_ID,
-        msg
-      );
+    msg += `Nô tì xin gửi menu cơm hôm nay ${getDate()}:`;
+    await bot.telegram.sendMessage(GROUP_CHAT_ID, msg);
     for (let i = 0; i < elements.length; i++) {
       const item = elements[i];
       const screenshotBuffer = await item.screenshot();
@@ -95,7 +109,7 @@ async function createVote() {
   // Gửi pool vote về group chat
   await bot.telegram.sendMessage(
     GROUP_CHAT_ID,
-    'Xin mời bạn click chọn món cho hôm nay, lưu ý mọi người cần phải chat với nô tì mới đặt món được ,hãy gửi tin nhắn bất kì cho em\n',
+    'Xin mời bạn click chọn món cho hôm nay!\n',
     {
       reply_markup: {
         inline_keyboard: buttonRows,
@@ -117,19 +131,21 @@ async function checkUpdateOrder(ctx, userInfo, selection) {
   if (userIndex != -1) {
     let extraMsg = `bạn muốn thêm 1 '<b>${selection}</b>' nữa không ?`;
     // Nếu user đã tồn tại, tạo nút "Đổi món" và "Thêm món" và gửi cho user
-    const buttons = [
-      { text: 'Thêm món', callback_data: 'add_order' }
-    ];
+    const buttons = [{ text: 'Thêm món', callback_data: 'add_order' }];
 
-    const isDishExist = selectionArr.some(select => select.selection == selection);
-    if(!isDishExist) {
+    const isDishExist = selectionArr.some(
+      (select) => select.selection == selection
+    );
+    if (!isDishExist) {
       extraMsg = `bạn muốn đổi sang '<b>${selection}</b>' hay là thêm món?`;
       buttons.unshift({ text: 'Đổi món', callback_data: 'add_order' });
     }
     const replyMarkup = {
       inline_keyboard: [buttons],
     }; // Khai báo định dạng message
-    const message = `Bạn đã đặt món '<b>${getSelectionString(selectionArr)}</b>', ${extraMsg}`;
+    const message = `Bạn đã đặt món '<b>${getSelectionString(
+      selectionArr
+    )}</b>', ${extraMsg}`;
     await ctx.telegram.sendMessage(userId, message, {
       reply_markup: replyMarkup,
       parse_mode: 'HTML',
@@ -139,6 +155,10 @@ async function checkUpdateOrder(ctx, userInfo, selection) {
   } else {
     // Nếu user chưa tồn tại, lưu thông tin user và lựa chọn vào mảng
     selectionHandle.addSelection(userInfo, selection);
+    const message = `Bạn đã đặt món '<b>${selection}</b>',`;
+    await ctx.telegram.sendMessage(userId, message, {
+      parse_mode: 'HTML',
+    });
   }
 }
 
@@ -193,22 +213,21 @@ async function processOrder() {
   await Promise.all(
     searchResultSelectors.map(async (button) => {
       const buttonElement = await button.asElement();
-    //   const isButtonEnabled = await page.evaluate((buttonElement) => {
-    //     return (
-    //       !buttonElement.disabled &&
-    //       (buttonElement.offsetWidth > 0 ||
-    //         buttonElement.offsetHeight > 0 ||
-    //         buttonElement.getClientRects().length > 0)
-    //     );
-    //   }, buttonElement);
+      //   const isButtonEnabled = await page.evaluate((buttonElement) => {
+      //     return (
+      //       !buttonElement.disabled &&
+      //       (buttonElement.offsetWidth > 0 ||
+      //         buttonElement.offsetHeight > 0 ||
+      //         buttonElement.getClientRects().length > 0)
+      //     );
+      //   }, buttonElement);
 
-    //   if (isButtonEnabled) {
-        await mutex.runExclusive(async () => {
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-          await buttonElement.click();
-         
-        });
-    //   }
+      //   if (isButtonEnabled) {
+      await mutex.runExclusive(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await buttonElement.click();
+      });
+      //   }
     })
   );
 }
@@ -228,7 +247,7 @@ async function sendSelectionsTable(chatId, selections) {
   message +=
     '|-----------------|------------------------------|-------------|\n';
   for (const item of selections) {
-    message += `| ${item.userName.padEnd(16)}| ${item.selection.padEnd(
+    message += `| ${(item.userName || '').padEnd(16)}| ${item.selection.padEnd(
       29
     )}| ${''.padEnd(12)}|\n`;
   }
@@ -319,4 +338,5 @@ module.exports = {
   processUpdateOrder,
   checkUpdateOrder,
   handleCallBack,
+  sendDebt,
 };

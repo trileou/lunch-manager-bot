@@ -5,6 +5,7 @@ const {
   processOrder,
   getOrder,
   handleCallBack,
+  sendDebt,
 } = require('./src/services');
 const cron = require('node-cron');
 const bot = require('./src/bot');
@@ -37,7 +38,20 @@ bot.use(telegrafGetChatMembers);
 
 // Đặt giờ gửi menu và tạo vote
 cron.schedule(
-  '10 9 * * *',
+  '0 16 * * *',
+  async () => {
+    // Send the menu
+    await sendDebt();
+    console.log('Menu sent successfully.');
+  },
+  {
+    scheduled: true,
+    timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
+  }
+);
+
+cron.schedule(
+  '40 9 * * *',
   async () => {
     // Send the menu
     await sendMenu();
@@ -104,7 +118,7 @@ bot.command('order', async () => {
   await processOrder();
 });
 
-bot.command('get_order', async () => {
+bot.command('check', async () => {
   await getOrder();
 });
 
