@@ -33,6 +33,18 @@ async function sendMenu() {
     // Đi đến trang web của nhà hàng
     await page.goto(MENU_URL, { waitUntil: 'domcontentloaded' });
     console.log('Page opened');
+
+    const elementExists = await page.evaluate(() => {
+      const element = document.querySelector('div[class^="items_detail-menu__TtlTb"] img');
+      return !!element;
+    });
+    
+    if (elementExists) {
+      console.log('Trang web có phần tử được tìm thấy.');
+    } else {
+      console.log('Trang web không có phần tử được tìm thấy.');
+    }
+    
     await page.waitForSelector('div[class^="items_detail-menu"] img', {
       timeout: 90000, // thời gian chờ tối đa là 30 giây
       visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
