@@ -51,7 +51,7 @@ cron.schedule(
 );
 
 cron.schedule(
-  '40 9 * * *',
+  '47 9 * * *',
   async () => {
     // Send the menu
     await sendMenu();

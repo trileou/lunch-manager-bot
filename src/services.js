@@ -1,4 +1,3 @@
-const { default: puppeteer } = require('puppeteer');
 const bot = require('./bot');
 const { MENU_URL, GROUP_CHAT_ID } = require('./constant');
 const { getDate, getSelectionString } = require('./helper');
@@ -6,6 +5,20 @@ const selectionHandle = require('./selection');
 
 const { Mutex } = require('async-mutex');
 const mutex = new Mutex();
+
+const puppeteer = require('puppeteer-extra');
+const pluginStealth = require('puppeteer-extra-plugin-stealth');
+const { executablePath } = require('puppeteer');
+puppeteer.use(pluginStealth());
+
+const randomUseragent = require('random-useragent');
+const proxyChain = require('proxy-chain');
+
+const USER_AGENT = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_1) 
+AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.75 Safari/537.36`;
+
+const oldProxyUrl = process.env.PROXY_SERVER;
+const newProxyUrl = await proxyChain.anonymizeProxy(oldProxyUrl);
 
 let tempOrder = [];
 
@@ -23,35 +36,53 @@ async function sendDebt() {
 async function sendMenu() {
   try {
     // Tạo trình duyệt mới
-    const browser = await puppeteer.launch({
+    let browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath: executablePath() || null,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        `--proxy-server=${newProxyUrl}`,
+      ],
+      ignoreHTTPSErrors: true,
+      dumpio: false,
     });
     console.log('Browser launched');
     const page = await browser.newPage();
+    const userAgent = randomUseragent.getRandom();
+    const UA = userAgent || USER_AGENT;
+    // Set viewport size to 1920x1080
+    await page.setViewport({ width: 1920, height: 1080 });
 
+    await page.setUserAgent(UA);
+    await page.setJavaScriptEnabled(true);
+    await page.setDefaultNavigationTimeout(0);
     // Đi đến trang web của nhà hàng
     await page.goto(MENU_URL, { waitUntil: 'domcontentloaded' });
     console.log('Page opened');
 
+    // Lấy nội dung của trang
+    const content = await page.content();
+    console.log(content);
+
     const elementExists = await page.evaluate(() => {
-      const element = document.querySelector('div[class^="items_detail-menu__TtlTb"] img');
+      const element = document.querySelector(
+        'div[class^="items_detail-menu__TtlTb"] img'
+      );
       return !!element;
     });
-    
+
     if (elementExists) {
       console.log('Trang web có phần tử được tìm thấy.');
     } else {
       console.log('Trang web không có phần tử được tìm thấy.');
     }
-    
+
     await page.waitForSelector('div[class^="items_detail-menu"] img', {
       timeout: 90000, // thời gian chờ tối đa là 30 giây
       visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
     });
 
-    // Set viewport size to 1920x1080
-    await page.setViewport({ width: 1920, height: 1080 });
     await page.evaluate(() => {
       const element = document.querySelector('.index_div_wraper_search__B_pLd');
       element.parentNode.removeChild(element);
