@@ -1,24 +1,16 @@
 const bot = require('./bot');
-const { MENU_URL, GROUP_CHAT_ID } = require('./constant');
+const { MENU_URL, GROUP_CHAT_ID, MENU_URL_API } = require('./constant');
 const { getDate, getSelectionString } = require('./helper');
 const selectionHandle = require('./selection');
 
 const { Mutex } = require('async-mutex');
 const mutex = new Mutex();
-
+const axios = require('axios');
 const puppeteer = require('puppeteer-extra');
 const pluginStealth = require('puppeteer-extra-plugin-stealth');
-const { executablePath } = require('puppeteer');
+const fetch = require('node-fetch');
+
 puppeteer.use(pluginStealth());
-
-const randomUseragent = require('random-useragent');
-const proxyChain = require('proxy-chain');
-
-const USER_AGENT = `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_1) 
-AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.75 Safari/537.36`;
-
-const oldProxyUrl = process.env.PROXY_SERVER;
-const newProxyUrl = await proxyChain.anonymizeProxy(oldProxyUrl);
 
 let tempOrder = [];
 
@@ -32,80 +24,115 @@ async function sendDebt() {
   });
 }
 
-// Hàm gửi menu
+// // Hàm gửi menu
+// async function sendMenu() {
+//   try {
+
+//     // Tạo trình duyệt mới
+//     let browser = await puppeteer.launch({
+//       headless: true,
+//       executablePath: executablePath() || null,
+//       args: [
+//         '--no-sandbox',
+//         '--disable-setuid-sandbox',
+//       ],
+//       ignoreHTTPSErrors: true,
+//       dumpio: false,
+//     });
+//     console.log('Browser launched');
+//     const page = await browser.newPage();
+//     // Đi đến trang web của nhà hàng
+//     await page.goto(MENU_URL, { waitUntil: 'domcontentloaded' });
+//     console.log('Page opened');
+
+//     // Lấy nội dung của trang
+//     const content = await page.content();
+//     console.log(content);
+
+//     const elementExists = await page.evaluate(() => {
+//       const element = document.querySelector(
+//         'div[class^="items_detail-menu__TtlTb"] img'
+//       );
+//       return !!element;
+//     });
+
+//     if (elementExists) {
+//       console.log('Trang web có phần tử được tìm thấy.');
+//     } else {
+//       console.log('Trang web không có phần tử được tìm thấy.');
+//     }
+
+//     await page.waitForSelector('div[class^="items_detail-menu"] img', {
+//       timeout: 90000, // thời gian chờ tối đa là 30 giây
+//       visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
+//     });
+
+//     await page.evaluate(() => {
+//       const element = document.querySelector('.index_div_wraper_search__B_pLd');
+//       element.parentNode.removeChild(element);
+//     });
+
+//     const elements = await page.$$('.items_detail-menu__TtlTb');
+//     console.log('Link opened');
+
+//     let msg = '\n----------------------------------\n';
+//     msg += `Nô tì xin gửi menu cơm hôm nay ${getDate()}:`;
+//     await bot.telegram.sendMessage(GROUP_CHAT_ID, msg);
+//     for (let i = 0; i < elements.length; i++) {
+//       const item = elements[i];
+//       const screenshotBuffer = await item.screenshot();
+
+//       // Gửi ảnh cho group chat bằng bot
+//       const photo = { source: screenshotBuffer };
+//       await bot.telegram.sendPhoto(GROUP_CHAT_ID, photo);
+//     }
+//     // Đóng trình duyệt
+//     await browser.close();
+//   } catch (error) {
+//     throw Error(`Có lỗi khi gửi menu ${error.message}`);
+//   }
+// }
 async function sendMenu() {
   try {
-    // Tạo trình duyệt mới
-    let browser = await puppeteer.launch({
-      headless: true,
-      executablePath: executablePath() || null,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        `--proxy-server=${newProxyUrl}`,
-      ],
-      ignoreHTTPSErrors: true,
-      dumpio: false,
-    });
-    console.log('Browser launched');
-    const page = await browser.newPage();
-    const userAgent = randomUseragent.getRandom();
-    const UA = userAgent || USER_AGENT;
-    // Set viewport size to 1920x1080
-    await page.setViewport({ width: 1920, height: 1080 });
-
-    await page.setUserAgent(UA);
-    await page.setJavaScriptEnabled(true);
-    await page.setDefaultNavigationTimeout(0);
-    // Đi đến trang web của nhà hàng
-    await page.goto(MENU_URL, { waitUntil: 'domcontentloaded' });
-    console.log('Page opened');
-
-    // Lấy nội dung của trang
-    const content = await page.content();
-    console.log(content);
-
-    const elementExists = await page.evaluate(() => {
-      const element = document.querySelector(
-        'div[class^="items_detail-menu__TtlTb"] img'
-      );
-      return !!element;
+    const response = await axios.get('https://menu.sapofnb.vn/api/menu', {
+      headers: {
+        'Cookie': 'store=bfe11e5ff59711eb80610a75247ce32e',
+        'Referer': 'https://menu.sapofnb.vn/'
+      }
     });
 
-    if (elementExists) {
-      console.log('Trang web có phần tử được tìm thấy.');
-    } else {
-      console.log('Trang web không có phần tử được tìm thấy.');
+    const data = response.data[0];
+
+    // Tạo nút cho mỗi mục trong menu
+    const buttons = data.objects.map((item) => {
+      const option = item.name;
+      return { text: option, callback_data: option };
+    });
+
+    // Chia mảng buttons thành các mảng con có độ dài bằng 2
+    const buttonRows = [];
+    for (let i = 0; i < buttons.length; i += 2) {
+      buttonRows.push(buttons.slice(i, i + 2));
     }
 
-    await page.waitForSelector('div[class^="items_detail-menu"] img', {
-      timeout: 90000, // thời gian chờ tối đa là 30 giây
-      visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
-    });
+    // Gửi pool vote về group chat
+    await bot.telegram.sendMessage(
+      GROUP_CHAT_ID,
+      'Xin mời bạn click chọn món cho hôm nay!\n',
+      {
+        reply_markup: {
+          inline_keyboard: buttonRows,
+        },
+      }
+    );
 
-    await page.evaluate(() => {
-      const element = document.querySelector('.index_div_wraper_search__B_pLd');
-      element.parentNode.removeChild(element);
-    });
-
-    const elements = await page.$$('.items_detail-menu__TtlTb');
-    console.log('Link opened');
-
-    let msg = '\n----------------------------------\n';
-    msg += `Nô tì xin gửi menu cơm hôm nay ${getDate()}:`;
-    await bot.telegram.sendMessage(GROUP_CHAT_ID, msg);
-    for (let i = 0; i < elements.length; i++) {
-      const item = elements[i];
-      const screenshotBuffer = await item.screenshot();
-
-      // Gửi ảnh cho group chat bằng bot
-      const photo = { source: screenshotBuffer };
-      await bot.telegram.sendPhoto(GROUP_CHAT_ID, photo);
-    }
-    // Đóng trình duyệt
-    await browser.close();
+    await bot.telegram.sendMessage(
+      GROUP_CHAT_ID,
+      `Cơm sẽ được chốt và lên đơn vào lúc 10:25, mọi người tranh thủ ạ!\n`
+    );
   } catch (error) {
-    throw Error(`Có lỗi khi gửi menu ${error.message}`);
+    console.error('Error fetching menu:', error);
+    return null;
   }
 }
 
