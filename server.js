@@ -6,6 +6,8 @@ const {
   getOrder,
   handleCallBack,
   sendDebt,
+  getCart,
+  resetData,
 } = require('./src/services');
 const cron = require('node-cron');
 const bot = require('./src/bot');
@@ -37,18 +39,18 @@ bot.use(telegrafGetChatMembers);
 // run();
 
 // Đặt giờ gửi menu và tạo vote
-cron.schedule(
-  '0 16 * * *',
-  async () => {
-    // Send the menu
-    await sendDebt();
-    console.log('Menu sent successfully.');
-  },
-  {
-    scheduled: true,
-    timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
-  }
-);
+// cron.schedule(
+//   '0 10 * * *',
+//   async () => {
+//     // Send the menu
+//     await sendDebt();
+//     console.log('Menu sent successfully.');
+//   },
+//   {
+//     scheduled: true,
+//     timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
+//   }
+// );
 
 cron.schedule(
   '40 9 * * *',
@@ -64,12 +66,25 @@ cron.schedule(
     await createVote();
     console.log('Vote created successfully.');
     // Hẹn giờ 1 tiếng rưỡi sau để gọi hàm getOrder()
+    // cron.schedule(
+    //   '25 10 * * *',
+    //   async () => {
+    //     // Tạo nút hỏi người dùng có muốn đặt món không
+    //     await getOrder();
+    //     console.log('Get order successfully.');
+    //   },
+    //   {
+    //     scheduled: true,
+    //     timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
+    //   }
+    // );
+
     cron.schedule(
-      '25 10 * * *',
+      '0 18 * * *',
       async () => {
         // Tạo nút hỏi người dùng có muốn đặt món không
-        await getOrder();
-        console.log('Get order successfully.');
+        await resetData();
+        console.log('reset successfully.');
       },
       {
         scheduled: true,
@@ -88,7 +103,8 @@ bot.command('list', (ctx) => {
     '<b>Danh sách các lệnh</b>\n' +
     '/menu: lấy menu của quán hôm nay\n' +
     '/vote: tạo vote thủ công để đặt món\n' +
-    '/check: check thông tin các món đã đặt\n' +
+    '/check: check thông tin các món user đã đặt\n' +
+    '/cart: check thông tin các món đã đặt\n' +
     '/order: tạo đơn hàng (tính năng chưa ổn định)\n' +
     '/info: thông tin của quán, thông tin chuyển khoản...';
 
@@ -120,6 +136,10 @@ bot.command('order', async () => {
 
 bot.command('check', async () => {
   await getOrder();
+});
+
+bot.command('cart', async () => {
+  await getCart();
 });
 
 // Xử lý lệnh /menu

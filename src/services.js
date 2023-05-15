@@ -27,26 +27,13 @@ async function sendMenu() {
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
-    console.log('Browser launched');
+    // Tạo trình duyệt mới
     const page = await browser.newPage();
 
     // Đi đến trang web của nhà hàng
-    await page.goto(MENU_URL, { waitUntil: 'domcontentloaded' });
-    console.log('Page opened');
-
-    const elementExists = await page.evaluate(() => {
-      const element = document.querySelector('div[class^="items_detail-menu__TtlTb"] img');
-      return !!element;
-    });
-    
-    if (elementExists) {
-      console.log('Trang web có phần tử được tìm thấy.');
-    } else {
-      console.log('Trang web không có phần tử được tìm thấy.');
-    }
-    
-    await page.waitForSelector('div[class^="items_detail-menu"] img', {
-      timeout: 90000, // thời gian chờ tối đa là 30 giây
+    await page.goto(MENU_URL);
+    await page.waitForSelector('div[class^="items_detail-menu"]', {
+      timeout: 30000, // thời gian chờ tối đa là 30 giây
       visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
     });
 
@@ -80,7 +67,10 @@ async function sendMenu() {
 
 // Hàm để lấy tên món từ trang https://menu.sapofnb.vn/
 async function getMenuItems() {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
   const page = await browser.newPage();
   await page.goto(MENU_URL);
 
@@ -136,14 +126,17 @@ async function createVote() {
 }
 
 async function checkUpdateOrder(ctx, userInfo, selection) {
-  const { userId } = userInfo;
+  const { userId, userName } = userInfo;
   // Kiểm tra xem user đã tồn tại trong mảng chưa
   const selectionArr = selectionHandle.getSelections();
   const userIndex = selectionArr.findIndex((item) => item.userId === userId);
+
+  const messageGroup = `<b>${userName}</b> đã đặt món '<b>${selection}</b>`;
+  const buttons = [{ text: 'Thêm món', callback_data: 'add_order' }];
+
   if (userIndex != -1) {
     let extraMsg = `bạn muốn thêm 1 '<b>${selection}</b>' nữa không ?`;
     // Nếu user đã tồn tại, tạo nút "Đổi món" và "Thêm món" và gửi cho user
-    const buttons = [{ text: 'Thêm món', callback_data: 'add_order' }];
 
     const isDishExist = selectionArr.some(
       (select) => select.selection == selection
@@ -152,12 +145,15 @@ async function checkUpdateOrder(ctx, userInfo, selection) {
       extraMsg = `bạn muốn đổi sang '<b>${selection}</b>' hay là thêm món?`;
       buttons.unshift({ text: 'Đổi món', callback_data: 'add_order' });
     }
-    const replyMarkup = {
-      inline_keyboard: [buttons],
-    }; // Khai báo định dạng message
+
     const message = `Bạn đã đặt món '<b>${getSelectionString(
       selectionArr
     )}</b>', ${extraMsg}`;
+
+    const replyMarkup = {
+      inline_keyboard: [buttons],
+    }; // Khai báo định dạng message
+
     await ctx.telegram.sendMessage(userId, message, {
       reply_markup: replyMarkup,
       parse_mode: 'HTML',
@@ -172,6 +168,10 @@ async function checkUpdateOrder(ctx, userInfo, selection) {
       parse_mode: 'HTML',
     });
   }
+
+  await ctx.telegram.sendMessage(GROUP_CHAT_ID, messageGroup, {
+    parse_mode: 'HTML',
+  });
 }
 
 async function processOrder() {
@@ -245,7 +245,7 @@ async function processOrder() {
 }
 
 // Hàm để gửi tin nhắn dạng table
-async function sendSelectionsTable(chatId, selections) {
+async function sendSelectionsTable(chatId, selections, isCart = false) {
   // Nếu không có dữ liệu selections
   if (selections.length === 0) {
     await ctx.reply('Hiện tại chưa có đơn hàng nào được đặt.');
@@ -254,16 +254,21 @@ async function sendSelectionsTable(chatId, selections) {
 
   // Khai báo header và định dạng bảng
   let message = `<b>Danh sách đặt món của bạn ngày ${getDate()}:</b>\n\n`;
-  message +=
-    '<code>| Tên             | Món đặt                      | Ghi chú     |\n';
-  message +=
-    '|-----------------|------------------------------|-------------|\n';
-  for (const item of selections) {
-    message += `| ${(item.userName || '').padEnd(16)}| ${item.selection.padEnd(
-      29
-    )}| ${''.padEnd(12)}|\n`;
+  if (isCart) {
+    message += '\n';
+    for (const item of selections) {
+      message += `${item.selection}\n`;
+    }
+  } else {
+    message += '<code>| Tên             | Món đặt                      \n';
+    message += '|-----------------|------------------------------\n';
+    for (const item of selections) {
+      message += `| ${(item.userName || '').padEnd(
+        16
+      )}| ${item.selection.padEnd(29)}\n`;
+    }
+    message += '</code>';
   }
-  message += '</code>';
 
   // Gửi tin nhắn dạng table cho người dùng
   await bot.telegram.sendMessage(chatId, message, { parse_mode: 'HTML' });
@@ -310,6 +315,17 @@ async function getOrder() {
   }
 }
 
+async function getCart() {
+  const selectionArr = selectionHandle.getSelections();
+  if (selectionArr && selectionArr.length > 0) {
+    sendSelectionsTable(GROUP_CHAT_ID, selectionArr, true);
+  } else {
+    const message = `Hình như các chủ nhân chưa đặt món nào , vui lòng gõ /vote và đặt lại`;
+
+    await bot.telegram.sendMessage(GROUP_CHAT_ID, message, {});
+  }
+}
+
 // CALLBACK
 async function handleCallBack(ctx) {
   const userId = ctx.update.callback_query.from.id;
@@ -341,6 +357,11 @@ async function handleCallBack(ctx) {
   }
 }
 
+async function resetData() {
+  tempOrder = [];
+  selectionHandle.resetSelections();
+}
+
 module.exports = {
   sendMenu,
   getMenuItems,
@@ -351,4 +372,6 @@ module.exports = {
   checkUpdateOrder,
   handleCallBack,
   sendDebt,
+  getCart,
+  resetData
 };
