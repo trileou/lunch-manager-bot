@@ -255,9 +255,24 @@ async function sendSelectionsTable(chatId, selections, isCart = false) {
   // Khai báo header và định dạng bảng
   let message = `<b>Danh sách đặt món của bạn ngày ${getDate()}:</b>\n\n`;
   if (isCart) {
+    const countMap = new Map();
+    // Đếm số lượng mỗi món ăn
+    for (const selection of selections) {
+      if (countMap.has(selection)) {
+        countMap.set(selection, countMap.get(selection) + 1);
+      } else {
+        countMap.set(selection, 1);
+      }
+    }
     message += '\n';
-    for (const item of selections) {
-      message += `${item.selection}\n`;
+
+    // Hiển thị danh sách với số lượng
+    for (const [selection, count] of countMap) {
+      if (count > 1) {
+        message += `${selection} x ${count}\n`;
+      } else {
+        message += `${selection}\n`;
+      }
     }
   } else {
     message += '<code>| Tên             | Món đặt                      \n';
@@ -373,5 +388,5 @@ module.exports = {
   handleCallBack,
   sendDebt,
   getCart,
-  resetData
+  resetData,
 };

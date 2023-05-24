@@ -38,22 +38,8 @@ bot.use(telegrafGetChatMembers);
 
 // run();
 
-// Đặt giờ gửi menu và tạo vote
-// cron.schedule(
-//   '0 10 * * *',
-//   async () => {
-//     // Send the menu
-//     await sendDebt();
-//     console.log('Menu sent successfully.');
-//   },
-//   {
-//     scheduled: true,
-//     timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
-//   }
-// );
-
 cron.schedule(
-  '40 9 * * *',
+  '30 9 * * 2-5',
   async () => {
     // Send the menu
     await sendMenu();
@@ -65,19 +51,20 @@ cron.schedule(
     // Create the vote
     await createVote();
     console.log('Vote created successfully.');
-    // Hẹn giờ 1 tiếng rưỡi sau để gọi hàm getOrder()
-    // cron.schedule(
-    //   '25 10 * * *',
-    //   async () => {
-    //     // Tạo nút hỏi người dùng có muốn đặt món không
-    //     await getOrder();
-    //     console.log('Get order successfully.');
-    //   },
-    //   {
-    //     scheduled: true,
-    //     timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
-    //   }
-    // );
+
+    // Đặt giờ gửi menu và tạo vote
+    cron.schedule(
+      '0 16 * * *',
+      async () => {
+        // Send the menu
+        await sendDebt();
+        console.log('send debt successfully.');
+      },
+      {
+        scheduled: true,
+        timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
+      }
+    );
 
     cron.schedule(
       '0 18 * * *',
@@ -108,17 +95,16 @@ bot.command('list', (ctx) => {
     '/order: tạo đơn hàng (tính năng chưa ổn định)\n' +
     '/info: thông tin của quán, thông tin chuyển khoản...';
 
-  ctx.reply(message, {parse_mode: 'HTML'});
+  ctx.reply(message, { parse_mode: 'HTML' });
 });
 
 bot.command('info', (ctx) => {
   const message =
-    '<b>Thông tin thanh toán 💰: </b>\n' + 
+    '<b>Thông tin thanh toán 💰: </b>\n' +
     '- <b>momo của người bán</b>: 0902504708 - Nguyễn Thị Tuyết Mai\n' +
     '- <b>momo của Anh Minh:</b> 0935268122\n';
-  ctx.reply(message, {parse_mode: 'HTML'});
+  ctx.reply(message, { parse_mode: 'HTML' });
 });
-
 
 // Lắng nghe sự kiện khi user chọn một lựa chọn
 bot.on('callback_query', async (ctx) => {
