@@ -14,6 +14,7 @@ const bot = require('./src/bot');
 const { GROUP_CHAT_ID } = require('./src/constant');
 const telegrafGetChatMembers = require('telegraf-getchatmembers');
 // Middleware kiểm tra số lượng request
+
 bot.use(errorHandler);
 bot.use(telegrafGetChatMembers);
 // test
@@ -39,7 +40,7 @@ bot.use(telegrafGetChatMembers);
 // run();
 
 cron.schedule(
-  '30 9 * * 2-5',
+  '40 9 * * 2-5',
   async () => {
     // Send the menu
     await sendMenu();
@@ -51,33 +52,33 @@ cron.schedule(
     // Create the vote
     await createVote();
     console.log('Vote created successfully.');
+  },
+  {
+    scheduled: true,
+    timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
+  }
+);
 
-    // Đặt giờ gửi menu và tạo vote
-    cron.schedule(
-      '0 16 * * *',
-      async () => {
-        // Send the menu
-        await sendDebt();
-        console.log('send debt successfully.');
-      },
-      {
-        scheduled: true,
-        timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
-      }
-    );
+cron.schedule(
+  '0 18 * * *',
+  async () => {
+    // Tạo nút hỏi người dùng có muốn đặt món không
+    await resetData();
+    console.log('reset successfully.');
+  },
+  {
+    scheduled: true,
+    timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
+  }
+);
 
-    cron.schedule(
-      '0 18 * * *',
-      async () => {
-        // Tạo nút hỏi người dùng có muốn đặt món không
-        await resetData();
-        console.log('reset successfully.');
-      },
-      {
-        scheduled: true,
-        timezone: 'Asia/Ho_Chi_Minh', // Đặt múi giờ cho cron
-      }
-    );
+ // Đặt giờ gửi menu và tạo vote
+ cron.schedule(
+  '0 16 * * 2-5',
+  async () => {
+    // Send the menu
+    await sendDebt();
+    console.log('send debt successfully.');
   },
   {
     scheduled: true,
@@ -104,6 +105,7 @@ bot.command('info', (ctx) => {
     '- <b>momo của người bán</b>: 0902504708 - Nguyễn Thị Tuyết Mai\n' +
     '- <b>momo của Anh Minh:</b> 0935268122\n';
   ctx.reply(message, { parse_mode: 'HTML' });
+  ctx.replyWithPhoto({ source: 'public/img/qr.jpg' });
 });
 
 // Lắng nghe sự kiện khi user chọn một lựa chọn
@@ -146,4 +148,4 @@ bot.command('menu', async (ctx) => {
 //     ctx.reply('Message sent to all members in the group!');
 //   });
 
-bot.launch();
+bot.launch().then(console.log('bot start'));

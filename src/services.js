@@ -17,6 +17,7 @@ async function sendDebt() {
   await bot.telegram.sendMessage(GROUP_CHAT_ID, message, {
     parse_mode: 'HTML',
   });
+  await bot.telegram.sendPhoto({ source: 'public/img/qr.jpg' });
 }
 
 // Hàm gửi menu
@@ -132,7 +133,10 @@ async function checkUpdateOrder(ctx, userInfo, selection) {
   const userIndex = selectionArr.findIndex((item) => item.userId === userId);
 
   const messageGroup = `<b>${userName}</b> đã đặt món '<b>${selection}</b>`;
-  const buttons = [{ text: 'Thêm món', callback_data: 'add_order' }];
+  const buttons = [
+    { text: 'Thêm món', callback_data: 'add_order' },
+    { text: 'Đặt lại', callback_data: 'remove_order' },
+  ];
 
   if (userIndex != -1) {
     let extraMsg = `bạn muốn thêm 1 '<b>${selection}</b>' nữa không ?`;
@@ -255,24 +259,10 @@ async function sendSelectionsTable(chatId, selections, isCart = false) {
   // Khai báo header và định dạng bảng
   let message = `<b>Danh sách đặt món của bạn ngày ${getDate()}:</b>\n\n`;
   if (isCart) {
-    const countMap = new Map();
-    // Đếm số lượng mỗi món ăn
-    for (const selection of selections) {
-      if (countMap.has(selection)) {
-        countMap.set(selection, countMap.get(selection) + 1);
-      } else {
-        countMap.set(selection, 1);
-      }
-    }
     message += '\n';
-
-    // Hiển thị danh sách với số lượng
-    for (const [selection, count] of countMap) {
-      if (count > 1) {
-        message += `${selection} x ${count}\n`;
-      } else {
-        message += `${selection}\n`;
-      }
+    selections = selections.sort();
+    for (const item of selections) {
+      message += `${item.selection}\n`;
     }
   } else {
     message += '<code>| Tên             | Món đặt                      \n';
@@ -296,6 +286,8 @@ function processUpdateOrder(userInfo, selection, orderName) {
     selectionHandle.updateSelection(userInfo, orderName);
   } else if (selection === 'add_order') {
     selectionHandle.addSelection(userInfo, orderName);
+  } else if (selection === 'remove_order') {
+    selectionHandle.removeUserSelections(userInfo.userId);
   }
 
   // gửi lại tin nhắn update cho user
@@ -349,7 +341,8 @@ async function handleCallBack(ctx) {
   const selection = ctx.update.callback_query.data; // Lấy lựa chọn
   switch (selection) {
     case 'change_order':
-    case 'add_order': {
+    case 'add_order':
+    case 'remove_order': {
       const tmpOrderFind = tempOrder.find((order) => order.userId == userId);
       const orderName = tmpOrderFind.selection || '';
       if (tmpOrderFind) {

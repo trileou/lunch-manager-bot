@@ -6,6 +6,10 @@ function addSelection(userInfo, selection) {
     selections.push({ ...userInfo, selection });
 }
 
+function removeUserSelections(userId) {
+  selections = selections.filter(select => select.userId !== userId);
+}
+
 function getUserSelections(userId) {
   return selections.filter(select => select.userId == userId);
 }
@@ -33,4 +37,5 @@ module.exports = {
   resetSelections,
   updateSelection,
   getUserSelections,
+  removeUserSelections
 };
