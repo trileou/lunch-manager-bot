@@ -13,10 +13,11 @@ async function sendDebt() {
   const message =
     'Mọi người ơi 4h rồi ai còn nợ tiền cơm thì thanh toán nha! \n' +
     '<b>Thông tin thanh toán 💰: </b>\n' +
-    '- <b>momo của Anh Minh:</b> 0935268122\n';
+    '- <b>momo của Chang Lee</b> 056 330 5629\n';
   await bot.telegram.sendMessage(GROUP_CHAT_ID, message, {
     parse_mode: 'HTML',
   });
+  
   await bot.telegram.sendPhoto({ source: 'public/img/qr.jpg' });
 }
 
@@ -135,7 +136,6 @@ async function checkUpdateOrder(ctx, userInfo, selection) {
   const messageGroup = `<b>${userName}</b> đã đặt món '<b>${selection}</b>`;
   const buttons = [
     { text: 'Thêm món', callback_data: 'add_order' },
-    { text: 'Đặt lại', callback_data: 'remove_order' },
   ];
 
   if (userIndex != -1) {
@@ -147,7 +147,7 @@ async function checkUpdateOrder(ctx, userInfo, selection) {
     );
     if (!isDishExist) {
       extraMsg = `bạn muốn đổi sang '<b>${selection}</b>' hay là thêm món?`;
-      buttons.unshift({ text: 'Đổi món', callback_data: 'add_order' });
+      buttons.unshift({ text: 'Đổi món', callback_data: 'change_order' });
     }
 
     const message = `Bạn đã đặt món '<b>${getSelectionString(
@@ -167,8 +167,19 @@ async function checkUpdateOrder(ctx, userInfo, selection) {
   } else {
     // Nếu user chưa tồn tại, lưu thông tin user và lựa chọn vào mảng
     selectionHandle.addSelection(userInfo, selection);
+    const removeOrderButton = [{ text: 'Đặt lại', callback_data: 'remove_order' }];
     const message = `Bạn đã đặt món '<b>${selection}</b>',`;
     await ctx.telegram.sendMessage(userId, message, {
+      parse_mode: 'HTML',
+    });
+
+    // send button     
+    const replyMarkup = {
+      inline_keyboard: [removeOrderButton],
+    }; // Khai báo định dạng message
+
+    await ctx.telegram.sendMessage(userId, message, {
+      reply_markup: replyMarkup,
       parse_mode: 'HTML',
     });
   }

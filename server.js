@@ -102,8 +102,8 @@ bot.command('list', (ctx) => {
 bot.command('info', (ctx) => {
   const message =
     '<b>Thông tin thanh toán 💰: </b>\n' +
-    '- <b>momo của người bán</b>: 0902504708 - Nguyễn Thị Tuyết Mai\n' +
-    '- <b>momo của Anh Minh:</b> 0935268122\n';
+    '- <b>momo của chủ quán</b>: 0902504708 - Nguyễn Thị Tuyết Mai\n' +
+    '- <b>momo của Chang Lee</b> 056 330 5629\n';
   ctx.reply(message, { parse_mode: 'HTML' });
   ctx.replyWithPhoto({ source: 'public/img/qr.jpg' });
 });
