@@ -1,6 +1,7 @@
 const { default: puppeteer } = require('puppeteer');
 const bot = require('./bot');
-const { MENU_URL, GROUP_CHAT_ID } = require('./constant');
+const Jimp = require('jimp');
+const { MENU_URLS, GROUP_CHAT_ID } = require('./constant');
 const { getDate, getSelectionString } = require('./helper');
 const selectionHandle = require('./selection');
 
@@ -8,7 +9,7 @@ const { Mutex } = require('async-mutex');
 const mutex = new Mutex();
 
 let tempOrder = [];
-
+let menuUrlValid = '';
 async function sendDebt() {
   const message =
     'Mọi người ơi 4h rồi ai còn nợ tiền cơm thì thanh toán nha! \n' +
@@ -17,12 +18,78 @@ async function sendDebt() {
   await bot.telegram.sendMessage(GROUP_CHAT_ID, message, {
     parse_mode: 'HTML',
   });
-  
+
   await bot.telegram.sendPhoto({ source: 'public/img/qr.jpg' });
 }
 
 // Hàm gửi menu
 async function sendMenu() {
+  let successfulRequest = false;
+
+  // Tạo trình duyệt mới
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+  // Tạo trình duyệt mới
+  const page = await browser.newPage();
+  for (const menuUrl of MENU_URLS) {
+    try {
+      // Đi đến trang web của nhà hàng
+      await page.goto(menuUrl);
+      await page.waitForSelector('div[class^="items_detail-menu"]', {
+        timeout: 10000, // thời gian chờ tối đa là 10 giây
+        visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
+      });
+
+      // Kiểm tra xem phần tử trên trang đã xuất hiện hay không
+      const elementExists = await page.$('div[class^="items_detail-menu"]');
+      if (elementExists) {
+        successfulRequest = true;
+        menuUrlValid = menuUrl;
+        // Đã thành công trong việc request đến menuUrl
+        // Set viewport size to 1920x1080
+        await page.setViewport({ width: 1920, height: 1080 });
+        await page.evaluate(() => {
+          const element = document.querySelector(
+            '.index_div_wraper_search__B_pLd'
+          );
+          element.parentNode.removeChild(element);
+        });
+
+        const elements = await page.$$('.items_detail-menu__TtlTb');
+        console.log('Link opened');
+        // Thực hiện các thao tác tiếp theo trên trang (nếu cần)
+        let msg = '\n----------------------------------\n';
+        msg += `Nô tì xin gửi menu cơm hôm nay ${getDate()}:`;
+        await bot.telegram.sendMessage(GROUP_CHAT_ID, msg);
+        for (let i = 0; i < elements.length; i++) {
+          const item = elements[i];
+          const screenshotBuffer = await item.screenshot();
+
+          // Gửi ảnh cho group chat bằng bot
+          const photo = { source: screenshotBuffer };
+          await bot.telegram.sendPhoto(GROUP_CHAT_ID, photo);
+        }
+        // Đóng trình duyệt
+        break; // Thoát khỏi vòng lặp nếu request thành công
+      }
+    } catch (error) {
+      console.error(`Có lỗi khi gửi menu ${menuUrl}, error:  ${error.message}`);
+    }
+  }
+  await browser.close();
+
+  if (!successfulRequest) {
+    // Gửi tin nhắn lỗi đến Telegram
+    const errorMessage =
+      'Hôm nay nô tì nghỉ ốm, anh/chị vui lòng đặt bằng tay!';
+    bot.telegram.sendMessage(GROUP_CHAT_ID, errorMessage);
+  }
+}
+
+// Hàm tạo menu và trả lời
+async function createCustomMenu(menuUrl) {
   try {
     // Tạo trình duyệt mới
     const browser = await puppeteer.launch({
@@ -33,48 +100,45 @@ async function sendMenu() {
     const page = await browser.newPage();
 
     // Đi đến trang web của nhà hàng
-    await page.goto(MENU_URL);
-    await page.waitForSelector('div[class^="items_detail-menu"]', {
-      timeout: 30000, // thời gian chờ tối đa là 30 giây
+    await page.goto(menuUrl);
+    await page.waitForSelector('div[class^="item-restaurant-row"]', {
+      timeout: 10000, // thời gian chờ tối đa là 10 giây
       visible: true, // chỉ chờ khi tất cả các ảnh đã hiển thị trên trang
     });
 
-    // Set viewport size to 1920x1080
     await page.setViewport({ width: 1920, height: 1080 });
-    await page.evaluate(() => {
-      const element = document.querySelector('.index_div_wraper_search__B_pLd');
-      element.parentNode.removeChild(element);
-    });
 
-    const elements = await page.$$('.items_detail-menu__TtlTb');
+    const elements = await page.$$(
+      '.ReactVirtualized__Grid__innerScrollContainer'
+    );
     console.log('Link opened');
-
+    // Thực hiện các thao tác tiếp theo trên trang (nếu cần)
     let msg = '\n----------------------------------\n';
-    msg += `Nô tì xin gửi menu cơm hôm nay ${getDate()}:`;
+    msg += `Nô tì xin gửi menu quán đã chọn`;
     await bot.telegram.sendMessage(GROUP_CHAT_ID, msg);
-    for (let i = 0; i < elements.length; i++) {
-      const item = elements[i];
-      const screenshotBuffer = await item.screenshot();
+    const screenshotBuffer = await elements[0].screenshot();
 
-      // Gửi ảnh cho group chat bằng bot
-      const photo = { source: screenshotBuffer };
-      await bot.telegram.sendPhoto(GROUP_CHAT_ID, photo);
-    }
-    // Đóng trình duyệt
-    await browser.close();
+    // const chunkWidth = 600; // Kích thước của mỗi phần hình ảnh
+    const chunkHeight = 800;
+
+    await sendImageParts(screenshotBuffer, chunkHeight, GROUP_CHAT_ID);
   } catch (error) {
-    throw Error(`Có lỗi khi gửi menu ${error.message}`);
+    // Gửi tin nhắn lỗi đến Telegram
+    const errorMessage = `Có lỗi trong quá trình tạo menu, lỗi: ${error.message}`;
+    bot.telegram.sendMessage(GROUP_CHAT_ID, errorMessage);
   }
 }
 
 // Hàm để lấy tên món từ trang https://menu.sapofnb.vn/
 async function getMenuItems() {
+  if (!menuUrlValid || menuUrlValid.length == 0) return [];
+
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
   const page = await browser.newPage();
-  await page.goto(MENU_URL);
+  await page.goto(menuUrlValid);
 
   await page.waitForSelector('div[class^="items_content__"]');
   const itemElements = await page.$$('div[class^="items_content__"]');
@@ -96,9 +160,55 @@ async function getMenuItems() {
   return menuItems;
 }
 
+async function getMenuItemsCustom(menuUrl) {
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+  const page = await browser.newPage();
+  await page.goto(menuUrl);
+
+  const menuItems = [];
+  let currentItem = null;
+
+  const allElements = await page.$$('.menu-group, .title-menu, .item-restaurant-row');
+
+  for (const element of allElements) {
+    const isMenuGroup = await element.$('.menu-group');
+    const isTitleMenu = await element.$('.title-menu');
+    const isItemRow = await element.$('.item-restaurant-row');
+
+    if (isMenuGroup) {
+      if (currentItem) {
+        menuItems.push(currentItem);
+      }
+      currentItem = { category: '', items: [] };
+      currentItem.category = await isMenuGroup.evaluate((el) => el.textContent.trim());
+    }
+
+    if (isTitleMenu && currentItem) {
+      currentItem.category = await isTitleMenu.evaluate((el) => el.textContent.trim());
+    }
+
+    if (isItemRow && currentItem) {
+      const itemName = await isItemRow.evaluate((el) => el.textContent.trim());
+      currentItem.items.push(itemName);
+    }
+  }
+
+  if (currentItem) {
+    menuItems.push(currentItem);
+  }
+
+  await browser.close();
+
+  return menuItems;
+}
+
+
 async function createVote() {
   const menuItems = await getMenuItems();
-
+  if (!menuItems || menuItems.length == 0) return;
   // Chuyển danh sách lựa chọn thành các nút
   const buttons = menuItems.map((option) => {
     return { text: option, callback_data: option };
@@ -127,6 +237,36 @@ async function createVote() {
   );
 }
 
+async function createVoteCustom(menuUrl) {
+  const menuItems = await getMenuItemsCustom(menuUrl);
+  if (!menuItems || menuItems.length === 0) return;
+
+  for (const menuCategory of menuItems) {
+    const categoryMessage = `Xin mời chọn món: \n`;
+    await bot.telegram.sendMessage(GROUP_CHAT_ID, categoryMessage);
+
+    const buttons = menuCategory.items.map((item) => {
+      return { text: item, callback_data: item };
+    });
+
+    const buttonRows = [];
+    for (let i = 0; i < buttons.length; i += 2) {
+      buttonRows.push(buttons.slice(i, i + 2));
+    }
+
+    await bot.telegram.sendMessage(GROUP_CHAT_ID, menuCategory.category , {
+      reply_markup: {
+        inline_keyboard: buttonRows,
+      },
+    });
+  }
+
+  await bot.telegram.sendMessage(
+    GROUP_CHAT_ID,
+    `Cơm sẽ được chốt và lên đơn vào lúc 10:25, mọi người tranh thủ ạ!\n`
+  );
+}
+
 async function checkUpdateOrder(ctx, userInfo, selection) {
   const { userId, userName } = userInfo;
   // Kiểm tra xem user đã tồn tại trong mảng chưa
@@ -134,9 +274,7 @@ async function checkUpdateOrder(ctx, userInfo, selection) {
   const userIndex = selectionArr.findIndex((item) => item.userId === userId);
 
   const messageGroup = `<b>${userName}</b> đã đặt món '<b>${selection}</b>`;
-  const buttons = [
-    { text: 'Thêm món', callback_data: 'add_order' },
-  ];
+  const buttons = [{ text: 'Thêm món', callback_data: 'add_order' }];
 
   if (userIndex != -1) {
     let extraMsg = `bạn muốn thêm 1 '<b>${selection}</b>' nữa không ?`;
@@ -167,13 +305,15 @@ async function checkUpdateOrder(ctx, userInfo, selection) {
   } else {
     // Nếu user chưa tồn tại, lưu thông tin user và lựa chọn vào mảng
     selectionHandle.addSelection(userInfo, selection);
-    const removeOrderButton = [{ text: 'Đặt lại', callback_data: 'remove_order' }];
+    const removeOrderButton = [
+      { text: 'Đặt lại', callback_data: 'remove_order' },
+    ];
     const message = `Bạn đã đặt món '<b>${selection}</b>',`;
     await ctx.telegram.sendMessage(userId, message, {
       parse_mode: 'HTML',
     });
 
-    // send button     
+    // send button
     const replyMarkup = {
       inline_keyboard: [removeOrderButton],
     }; // Khai báo định dạng message
@@ -207,7 +347,7 @@ async function processOrder() {
   });
 
   // Load the page and wait for all network requests to finish
-  await page.goto(MENU_URL, { waitUntil: 'networkidle2' });
+  await page.goto(menuUrlValid, { waitUntil: 'networkidle2' });
 
   // Wait for the last div element with class prefix "items_content__"
   await page.waitForSelector('div[class^="items_content__"]:last-child');
@@ -381,6 +521,42 @@ async function resetData() {
   selectionHandle.resetSelections();
 }
 
+// Hàm gửi danh sách hình ảnh
+async function sendImageGroup(imageBuffers, chatId) {
+  const media = [];
+
+  for (let i = 0; i < imageBuffers.length; i++) {
+    const image = await Jimp.read(imageBuffers[i]);
+    const chunkImage = await image.clone().resize(800, Jimp.AUTO);
+    const chunkBuffer = await chunkImage.getBufferAsync(Jimp.MIME_PNG);
+
+    media.push({ type: 'photo', media: { source: chunkBuffer } });
+  }
+
+  await bot.telegram.sendMediaGroup(chatId, media);
+}
+
+// Hàm gửi hình ảnh theo kích thước
+async function sendImageParts(imageBuffer, chunkHeight, chatId) {
+  const image = await Jimp.read(imageBuffer);
+  const imageHeight = image.getHeight();
+
+  const rows = Math.ceil(imageHeight / chunkHeight);
+  const imageBuffers = [];
+
+  for (let row = 0; row < rows; row++) {
+    const startY = row * chunkHeight;
+    const endY = Math.min(startY + chunkHeight, imageHeight);
+
+    const chunkImage = await image.clone().crop(0, startY, image.getWidth(), endY - startY);
+    const chunkBuffer = await chunkImage.getBufferAsync(Jimp.MIME_PNG);
+
+    imageBuffers.push(chunkBuffer);
+  }
+
+  await sendImageGroup(imageBuffers, chatId);
+}
+
 module.exports = {
   sendMenu,
   getMenuItems,
@@ -393,4 +569,7 @@ module.exports = {
   sendDebt,
   getCart,
   resetData,
+  createCustomMenu,
+  sendImageParts,
+  createVoteCustom
 };

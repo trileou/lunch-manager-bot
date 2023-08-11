@@ -8,10 +8,12 @@ const {
   sendDebt,
   getCart,
   resetData,
+  createCustomMenu,
+  createVoteCustom,
 } = require('./src/services');
 const cron = require('node-cron');
 const bot = require('./src/bot');
-const { GROUP_CHAT_ID } = require('./src/constant');
+// const { GROUP_CHAT_ID } = require('./src/constant');
 const telegrafGetChatMembers = require('telegraf-getchatmembers');
 // Middleware kiểm tra số lượng request
 
@@ -39,9 +41,15 @@ bot.use(telegrafGetChatMembers);
 
 // run();
 
+let jobRunning = true;
+
 cron.schedule(
-  '40 9 * * 2-5',
+  '00 10 * * 2-5',
   async () => {
+    if(!jobRunning) {
+      console.log('Job is paused.'); // Công việc đã dừng, không thực hiện gì
+      return;
+    }
     // Send the menu
     await sendMenu();
     console.log('Menu sent successfully.');
@@ -134,6 +142,62 @@ bot.command('cart', async () => {
 bot.command('menu', async (ctx) => {
   await sendMenu(ctx);
 });
+
+// Lệnh để dừng công việc
+bot.command('stop', (ctx) => {
+  jobRunning = false; // Đặt trạng thái công việc thành dừng
+  ctx.reply('Đã ngưng đặt cơm tự động vào lúc 10:00 hôm nay! \n Nếu muốn đặt link shoppeeFood vui lòng gõ /create_menu!');
+});
+
+
+
+//create menu link
+let menuLink = null; // Biến để lưu link menu, khởi đầu là null
+
+// Lệnh để xử lý tạo menu
+// bot.command('create_menu', async (ctx) => {
+//   const userMessage = ctx.message.text;
+
+//   // Kiểm tra nếu người dùng đã cung cấp liên kết sau lệnh /create_menu
+//   if (userMessage.split(' ').length > 1) {
+//     menuLink = userMessage.split(' ')[1]; // Lấy liên kết từ thông điệp
+//     await createCustomMenu(menuLink);
+//     await createVoteCustom(menuLink);
+//     // ctx.reply('Menu has been created successfully.');
+//   } else {
+//     if (!menuLink) {
+//       await ctx.reply('Please enter the link for the menu.');
+//       menuLink = true; // Đặt trạng thái đang chờ nhập link
+//     } else {
+//       // Đã có link rồi, thực hiện tạo menu từ menuLink
+//       await createCustomMenu(menuLink);
+//       await createVoteCustom(menuLink);
+
+//       // ctx.reply('Menu has been created successfully.');
+//       menuLink = null; // Đặt lại trạng thái để yêu cầu người dùng nhập link lần sau
+//     }
+//   }
+// });
+
+// // Sự kiện lắng nghe tin nhắn người dùng
+// bot.on('text', async (ctx) => {
+//   menuLink = ctx.message.text;
+//   if(!menuLink || menuLink.length == 0) {
+//     ctx.reply("Vui lòng nhập link shopeefood đúng định dạng!");
+//     return;
+//   }
+
+//   if (menuLink) {
+//     // Lưu link mà người dùng đã nhập
+//     await createCustomMenu(menuLink);
+//     // ctx.reply('Menu has been created successfully.');
+//     menuLink = null; // Đặt lại trạng thái để yêu cầu người dùng nhập link lần sau
+//   }
+// });
+
+
+
+
 
 // bot.command('sendall', async (ctx) => {
 //     const chatId = GROUP_CHAT_ID;

@@ -3,6 +3,8 @@
     "async-lock": "^1.4.0",
     "async-mutex": "^0.4.0",
     "date-fns": "^2.29.3",
+    "gm": "^1.25.0",
+    "jimp": "^0.22.10",
     "node-cron": "^3.0.2",
     "puppeteer": "^19.10.0",
     "semaphore": "^1.1.0",
